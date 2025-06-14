@@ -1,36 +1,35 @@
 import streamlit as st
 import pandas as pd
-import os
+from streamlit_gsheets import GSheetsConnection
 from datetime import date
-
-# --- Configurações e Funções Auxiliares ---
-CSV_FILE = 'competicoes.csv'
-
-def load_data():
-    """Carrega os dados das competições."""
-    if not os.path.exists(CSV_FILE):
-        return pd.DataFrame(columns=['ID', 'Competicao', 'Temporada', 'DataFinal', 'Campeao'])
-    
-    # Garante que a coluna de data seja interpretada corretamente
-    df = pd.read_csv(CSV_FILE, parse_dates=['DataFinal'])
-    return df
-
-def save_data(df):
-    """Salva o DataFrame de volta no CSV."""
-    df.to_csv(CSV_FILE, index=False)
 
 st.set_page_config(page_title="Fantasy - Competição Vigente", page_icon="🏆")
 
 st.title("🔥 Competição Vigente")
 st.write("Acompanhe aqui a competição que está mais perto da grande final!")
 
-df = load_data()
+# --- Conexão e Carregamento dos Dados ---
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(worksheet="Página1", usecols=list(range(5)), ttl="10m")
+    df = df.dropna(how='all')
+except Exception as e:
+    st.error(f"Ocorreu um erro ao conectar ou ler a planilha. Verifique suas configurações. Erro: {e}")
+    st.stop()
+
+# --- Processamento e Lógica da Página ---
+
+# Converte colunas para os tipos corretos
+df['ID'] = pd.to_numeric(df['ID'])
+df['DataFinal'] = pd.to_datetime(df['DataFinal'])
+# Preenche valores vazios na coluna campeão para garantir a filtragem correta
+df['Campeao'] = df['Campeao'].fillna('')
 
 # Filtra apenas as competições que ainda não têm um campeão definido
-df_vigentes = df[pd.isna(df['Campeao'])].copy()
+df_vigentes = df[df['Campeao'] == ''].copy()
 
 if df_vigentes.empty:
-    st.info("Nenhuma competição em andamento. Cadastre uma nova na página 'Cadastrar Competição'!")
+    st.info("🎉 Todas as competições foram finalizadas! Cadastre uma nova na página 'Cadastrar Competição'!")
 else:
     # Ordena para pegar a competição com a data final mais próxima
     df_vigentes = df_vigentes.sort_values(by='DataFinal', ascending=True)
@@ -58,16 +57,14 @@ else:
                 if not nome_campeao:
                     st.error("Você precisa informar o nome do campeão!")
                 else:
-                    # Encontra o índice da competição no DataFrame original para atualizar
-                    index_para_atualizar = df[df['ID'] == competicao_atual['ID']].index
+                    # Altera o valor 'Campeao' no DataFrame original para a competição atual
+                    df.loc[df['ID'] == competicao_atual['ID'], 'Campeao'] = nome_campeao
                     
-                    # Atualiza o DataFrame original
-                    df.loc[index_para_atualizar, 'Campeao'] = nome_campeao
+                    # Salva o DataFrame inteiro de volta na planilha
+                    conn.update(worksheet="Página1", data=df)
                     
-                    save_data(df)
                     st.balloons()
                     st.success(f"Parabéns a {nome_campeao}, campeão de {competicao_atual['Competicao']} {competicao_atual['Temporada']}!")
-                    st.info("A página será recarregada para mostrar a próxima competição.")
-                    st.rerun() # Recarrega a página
+                    st.rerun() # Recarrega a página para atualizar as informações
     else:
         st.info("Aguardando a data da final para a definição do campeão.")

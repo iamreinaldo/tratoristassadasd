@@ -1,31 +1,34 @@
 import streamlit as st
 import pandas as pd
-import os
-
-# --- Configurações e Funções Auxiliares ---
-CSV_FILE = 'competicoes.csv'
-
-def load_data():
-    """Carrega os dados das competições."""
-    if not os.path.exists(CSV_FILE):
-        return pd.DataFrame(columns=['ID', 'Competicao', 'Temporada', 'DataFinal', 'Campeao'])
-    
-    df = pd.read_csv(CSV_FILE, parse_dates=['DataFinal'])
-    return df
+from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Hall de Campeões", page_icon="🏛️")
 st.title("🏛️ Hall de Campeões")
 st.write("A lista imortal dos maiores managers da história da liga.")
 
-df = load_data()
+# --- Conexão e Carregamento dos Dados ---
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(worksheet="Página1", usecols=list(range(5)), ttl="10m")
+    df = df.dropna(how='all')
+except Exception as e:
+    st.error(f"Ocorreu um erro ao conectar ou ler a planilha. Verifique suas configurações. Erro: {e}")
+    st.stop()
 
-# Filtra apenas competições que JÁ TÊM um campeão
-df_campeoes = df.dropna(subset=['Campeao'])
+# --- Processamento e Lógica da Página ---
+
+# Preenche valores vazios e garante que o campeão seja texto
+df['Campeao'] = df['Campeao'].fillna('')
+# Filtra apenas competições que JÁ TÊM um campeão (não são uma string vazia)
+df_campeoes = df[df['Campeao'] != ''].copy()
+
 
 if df_campeoes.empty:
     st.info("Ainda não temos campeões registrados na história.")
 else:
-    # Exibe a tabela de campeões
+    # Garante que a Temporada seja tratada como texto para exibição
+    df_campeoes['Temporada'] = df_campeoes['Temporada'].astype(str)
+
     st.dataframe(
         df_campeoes[['Temporada', 'Competicao', 'Campeao']].sort_values(by='Temporada', ascending=False),
         hide_index=True,
