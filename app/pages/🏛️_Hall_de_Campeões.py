@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
+from streamlit_gsheets.gsheets_connection import GSheetsConnection
 
 st.set_page_config(page_title="Hall de Campeões", page_icon="🏛️")
 st.title("🏛️ Hall de Campeões")

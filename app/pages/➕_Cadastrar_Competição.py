@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
+from streamlit_gsheets.gsheets_connection import GSheetsConnection
 from datetime import date
 
 st.set_page_config(page_title="Cadastrar Competição", page_icon="➕")
